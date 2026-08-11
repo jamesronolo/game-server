@@ -1,16 +1,149 @@
 import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
-import { pool, initDatabase } from './db.js';
+import { pool, initDatabase, isInMemoryMode } from './db.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// -------------------------------------------------------------
+// SOCKET.IO REAL-TIME MULTIPLAYER LOBBY SYSTEM
+// -------------------------------------------------------------
+interface Player {
+  id: string;
+  socketId: string;
+  name: string;
+  avatar: string;
+  score: number;
+  isHost: boolean;
+}
+
+interface Room {
+  code: string;
+  hostSocketId: string;
+  gameSlug: string;
+  questionSetId: string;
+  status: 'waiting' | 'playing' | 'finished';
+  players: Player[];
+  createdAt: number;
+}
+
+const rooms = new Map<string, Room>();
+
+io.on('connection', (socket) => {
+  console.log(`⚡ Socket connected: ${socket.id}`);
+
+  // Create Multiplayer Lobby (Host)
+  socket.on('create_lobby', (data: { gameSlug: string; questionSetId: string; hostName?: string }, callback) => {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const hostPlayer: Player = {
+      id: `host-${socket.id}`,
+      socketId: socket.id,
+      name: data.hostName || 'Host Teacher',
+      avatar: '👑',
+      score: 0,
+      isHost: true,
+    };
+
+    const room: Room = {
+      code,
+      hostSocketId: socket.id,
+      gameSlug: data.gameSlug,
+      questionSetId: data.questionSetId,
+      status: 'waiting',
+      players: [hostPlayer],
+      createdAt: Date.now(),
+    };
+
+    rooms.set(code, room);
+    socket.join(code);
+
+    if (typeof callback === 'function') {
+      callback({ success: true, code, room });
+    }
+  });
+
+  // Join Multiplayer Lobby (Student)
+  socket.on('join_lobby', (data: { code: string; playerName: string; avatar?: string }, callback) => {
+    const room = rooms.get(data.code);
+    if (!room) {
+      if (typeof callback === 'function') {
+        callback({ success: false, error: 'Room code not found' });
+      }
+      return;
+    }
+
+    const player: Player = {
+      id: `p-${socket.id}`,
+      socketId: socket.id,
+      name: data.playerName,
+      avatar: data.avatar || '🧑‍🎓',
+      score: 0,
+      isHost: false,
+    };
+
+    room.players.push(player);
+    socket.join(data.code);
+
+    io.to(data.code).emit('lobby_updated', { room });
+
+    if (typeof callback === 'function') {
+      callback({ success: true, code: data.code, room });
+    }
+  });
+
+  // Host Starts Live Game
+  socket.on('start_game', (data: { code: string }) => {
+    const room = rooms.get(data.code);
+    if (room && room.hostSocketId === socket.id) {
+      room.status = 'playing';
+      io.to(data.code).emit('game_started', { room });
+    }
+  });
+
+  // Player Updates Score
+  socket.on('update_score', (data: { code: string; scoreDelta: number }) => {
+    const room = rooms.get(data.code);
+    if (room) {
+      const player = room.players.find((p) => p.socketId === socket.id);
+      if (player) {
+        player.score += data.scoreDelta;
+        io.to(data.code).emit('lobby_updated', { room });
+      }
+    }
+  });
+
+  // Disconnect & Leave
+  socket.on('disconnect', () => {
+    for (const [code, room] of rooms.entries()) {
+      const idx = room.players.findIndex((p) => p.socketId === socket.id);
+      if (idx !== -1) {
+        room.players.splice(idx, 1);
+        if (room.players.length === 0) {
+          rooms.delete(code);
+        } else {
+          io.to(code).emit('lobby_updated', { room });
+        }
+      }
+    }
+  });
+});
 
 // Helper for Gemini AI client
 const getAiClient = () => {
@@ -32,7 +165,13 @@ const getAiClient = () => {
 app.get('/api/health', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 as test');
-    res.json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      db: isInMemoryMode ? 'in-memory-fallback' : 'connected',
+      activeSockets: io.sockets.sockets.size,
+      activeRooms: rooms.size,
+      timestamp: new Date().toISOString(),
+    });
   } catch (err: any) {
     res.status(500).json({ status: 'error', db: err.message });
   }
@@ -44,7 +183,7 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     const [rows] = await pool.query<any[]>('SELECT id, name, email, role, is_pro as isPro, avatar_url as avatarUrl, class_name as className FROM users');
-    res.json(rows.map(u => ({ ...u, isPro: Boolean(u.isPro) })));
+    res.json(rows.map((u) => ({ ...u, isPro: Boolean(u.isPro) })));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -82,16 +221,16 @@ app.get('/api/games', async (req, res) => {
 app.get('/api/question-sets', async (req, res) => {
   try {
     const [sets] = await pool.query<any[]>('SELECT id, owner_id as ownerId, owner_name as ownerName, title, description, subject, grade_level as gradeLevel, is_public as isPublic, tags, created_at as createdAt, updated_at as updatedAt FROM question_sets ORDER BY updated_at DESC');
-    
+
     const result = [];
     for (const s of sets) {
       const [questions] = await pool.query<any[]>('SELECT id, set_id as setId, prompt_text as promptText, answer, options, type, position, hint FROM questions WHERE set_id = ? ORDER BY position ASC', [s.id]);
-      
+
       result.push({
         ...s,
         isPublic: Boolean(s.isPublic),
         tags: s.tags ? (typeof s.tags === 'string' ? JSON.parse(s.tags) : s.tags) : [],
-        questions: questions.map(q => ({
+        questions: (questions || []).map((q: any) => ({
           ...q,
           options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [],
         })),
@@ -115,22 +254,18 @@ app.post('/api/question-sets', async (req, res) => {
     const [existing] = await pool.query<any[]>('SELECT id FROM question_sets WHERE id = ?', [id]);
 
     if (existing.length > 0) {
-      // Update
       await pool.query(
         'UPDATE question_sets SET title = ?, description = ?, subject = ?, grade_level = ?, is_public = ?, tags = ?, updated_at = ? WHERE id = ?',
         [title, description, subject, gradeLevel, isPublic ? 1 : 0, tagsJson, now, id]
       );
-      // Replace questions
       await pool.query('DELETE FROM questions WHERE set_id = ?', [id]);
     } else {
-      // Insert
       await pool.query(
         'INSERT INTO question_sets (id, owner_id, owner_name, title, description, subject, grade_level, is_public, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [id, ownerId, ownerName, title, description, subject, gradeLevel, isPublic ? 1 : 0, tagsJson, now, now]
       );
     }
 
-    // Insert questions
     if (Array.isArray(questions)) {
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
@@ -165,7 +300,7 @@ app.delete('/api/question-sets/:id', async (req, res) => {
 app.get('/api/assignments', async (req, res) => {
   try {
     const [rows] = await pool.query<any[]>('SELECT id, teacher_id as teacherId, teacher_name as teacherName, class_id as classId, class_name as className, question_set_id as questionSetId, question_set_title as questionSetTitle, game_slug as gameSlug, game_name as gameName, join_code as joinCode, due_date as dueDate, rewards_enabled as rewardsEnabled, created_at as createdAt FROM assignments ORDER BY created_at DESC');
-    res.json(rows.map(a => ({ ...a, rewardsEnabled: Boolean(a.rewardsEnabled) })));
+    res.json(rows.map((a) => ({ ...a, rewardsEnabled: Boolean(a.rewardsEnabled) })));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -174,7 +309,7 @@ app.get('/api/assignments', async (req, res) => {
 app.post('/api/assignments', async (req, res) => {
   try {
     const { teacherId, teacherName, classId, className, questionSetId, questionSetTitle, gameSlug, gameName, dueDate, rewardsEnabled } = req.body;
-    
+
     const id = `asg-${Date.now()}`;
     const joinCode = `FUN-${Math.floor(1000 + Math.random() * 9000)}`;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -220,14 +355,14 @@ app.delete('/api/assignments/:id', async (req, res) => {
 app.get('/api/attempts', async (req, res) => {
   try {
     const [attempts] = await pool.query<any[]>('SELECT id, assignment_id as assignmentId, student_id as studentId, student_name as studentName, question_set_id as questionSetId, question_set_title as questionSetTitle, game_slug as gameSlug, score, accuracy, total_questions as totalQuestions, correct_count as correctCount, completed_at as completedAt FROM attempts ORDER BY completed_at DESC');
-    
+
     const result = [];
     for (const att of attempts) {
       const [answers] = await pool.query<any[]>('SELECT question_id as questionId, question_prompt as questionPrompt, student_answer as studentAnswer, correct_answer as correctAnswer, is_correct as isCorrect FROM attempt_answers WHERE attempt_id = ?', [att.id]);
-      
+
       result.push({
         ...att,
-        answers: answers.map(ans => ({ ...ans, isCorrect: Boolean(ans.isCorrect) })),
+        answers: (answers || []).map((ans: any) => ({ ...ans, isCorrect: Boolean(ans.isCorrect) })),
       });
     }
 
@@ -259,14 +394,13 @@ app.post('/api/attempts', async (req, res) => {
       }
     }
 
-    // Update student rewards if points scored
     if (score > 0 && studentId) {
       const [rewards] = await pool.query<any[]>('SELECT points, tickets_earned FROM rewards WHERE student_id = ?', [studentId]);
-      let currentPoints = rewards.length > 0 ? rewards[0].points : 0;
+      let currentPoints = rewards && rewards.length > 0 ? rewards[0].points : 0;
       let newPoints = currentPoints + score;
       let newTickets = Math.floor(newPoints / 250);
 
-      if (rewards.length > 0) {
+      if (rewards && rewards.length > 0) {
         await pool.query('UPDATE rewards SET points = ?, tickets_earned = ? WHERE student_id = ?', [newPoints, newTickets, studentId]);
       } else {
         await pool.query('INSERT INTO rewards (student_id, points, tickets_earned, unlocked_sticker_ids) VALUES (?, ?, ?, ?)', [studentId, newPoints, newTickets, JSON.stringify(['stk-1', 'stk-2'])]);
@@ -340,7 +474,6 @@ app.delete('/api/roster/:id', async (req, res) => {
   }
 });
 
-
 // -------------------------------------------------------------
 // REWARDS API
 // -------------------------------------------------------------
@@ -348,8 +481,8 @@ app.get('/api/rewards/:studentId', async (req, res) => {
   try {
     const { studentId } = req.params;
     const [rows] = await pool.query<any[]>('SELECT student_id as studentId, points, tickets_earned as ticketsEarned, unlocked_sticker_ids as unlockedStickerIds FROM rewards WHERE student_id = ?', [studentId]);
-    
-    if (rows.length === 0) {
+
+    if (!rows || rows.length === 0) {
       return res.json({
         studentId,
         points: 450,
@@ -377,7 +510,7 @@ app.put('/api/rewards/:studentId', async (req, res) => {
 
     const [existing] = await pool.query<any[]>('SELECT student_id FROM rewards WHERE student_id = ?', [studentId]);
 
-    if (existing.length > 0) {
+    if (existing && existing.length > 0) {
       await pool.query(
         'UPDATE rewards SET points = COALESCE(?, points), tickets_earned = COALESCE(?, tickets_earned), unlocked_sticker_ids = ? WHERE student_id = ?',
         [points !== undefined ? points : null, ticketsEarned !== undefined ? ticketsEarned : null, stickerJson, studentId]
@@ -469,11 +602,11 @@ app.post('/api/ai/generate-set', async (req, res) => {
 async function start() {
   await initDatabase();
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`🚀 EduPlay MySQL Backend Server listening on http://0.0.0.0:${PORT}`);
+  httpServer.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`🚀 EduPlay Backend Server with Socket.IO listening on http://0.0.0.0:${PORT}`);
   });
 }
 
-start().catch(err => {
+start().catch((err) => {
   console.error('Failed to start server:', err);
 });
