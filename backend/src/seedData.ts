@@ -876,8 +876,8 @@ export const INITIAL_ROSTER = [
 export const INITIAL_REWARDS = [
   {
     student_id: 'u-student-1',
-    points: 450,
-    tickets_earned: 2,
+    points: 4500,
+    tickets_earned: 2500,
     unlocked_sticker_ids: JSON.stringify(['stk-1', 'stk-2']),
   },
 ];
