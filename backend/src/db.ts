@@ -45,6 +45,364 @@ export const memoryStore = {
   rewards: [...INITIAL_REWARDS],
 };
 
+/**
+ * Execute a MySQL Stored Procedure with parameters
+ * Automatically handles MySQL results or in-memory fallback
+ */
+export async function callProcedure<T = any>(procName: string, params: any[] = []): Promise<T> {
+  if (!isInMemoryMode && mysqlPool) {
+    try {
+      const placeholders = params.map(() => '?').join(', ');
+      const sql = `CALL ${procName}(${placeholders})`;
+      const [results] = (await mysqlPool.query(sql, params)) as any[];
+      // MySQL stored procedures return an array of result sets; first item is our procedure's SELECT
+      if (Array.isArray(results) && results.length > 0) {
+        return results[0] as T;
+      }
+      return results as T;
+    } catch (err) {
+      console.warn(`⚠️ MySQL error executing ${procName}, using in-memory store fallback:`, (err as Error).message);
+      isInMemoryMode = true;
+    }
+  }
+
+  // In-memory procedure handlers for offline/testing fallback
+  return executeInMemoryProcedure<T>(procName, params);
+}
+
+function executeInMemoryProcedure<T>(procName: string, params: any[]): T {
+  const name = procName.toLowerCase();
+
+  switch (name) {
+    case 'sp_get_users':
+      return memoryStore.users.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isPro: Boolean(u.is_pro ?? u.isPro),
+        avatarUrl: u.avatar_url ?? u.avatarUrl,
+        className: u.class_name ?? u.className,
+        createdAt: u.created_at ?? u.createdAt,
+      })) as unknown as T;
+
+    case 'sp_update_user': {
+      const [id, nameVal, email, isPro, avatarUrl, className] = params;
+      const u = memoryStore.users.find((x: any) => x.id === id);
+      if (u) {
+        if (nameVal !== null && nameVal !== undefined) u.name = nameVal;
+        if (email !== null && email !== undefined) u.email = email;
+        if (isPro !== null && isPro !== undefined) u.is_pro = Boolean(isPro);
+        if (avatarUrl !== null && avatarUrl !== undefined) u.avatar_url = avatarUrl;
+        if (className !== null && className !== undefined) u.class_name = className;
+      }
+      return [{ affected_rows: u ? 1 : 0 }] as unknown as T;
+    }
+
+    case 'sp_get_games':
+      return memoryStore.games.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        description: g.description,
+        mechanic: g.mechanic,
+        badge: g.badge,
+        category: g.category,
+        minGrade: g.min_grade ?? g.minGrade,
+        iconName: g.icon_name ?? g.iconName,
+        gradientBg: g.gradient_bg ?? g.gradientBg,
+        accentColor: g.accent_color ?? g.accentColor,
+        imageUrl: g.image_url ?? g.imageUrl,
+      })) as unknown as T;
+
+    case 'sp_get_question_sets':
+      return memoryStore.questionSets.map((s: any) => ({
+        id: s.id,
+        ownerId: s.owner_id ?? s.ownerId,
+        ownerName: s.owner_name ?? s.ownerName,
+        title: s.title,
+        description: s.description,
+        subject: s.subject,
+        gradeLevel: s.grade_level ?? s.gradeLevel,
+        isPublic: Boolean(s.is_public ?? s.isPublic),
+        tags: s.tags,
+        createdAt: s.created_at ?? s.createdAt,
+        updatedAt: s.updated_at ?? s.updatedAt,
+      })) as unknown as T;
+
+    case 'sp_get_question_set_by_id': {
+      const [id] = params;
+      const set = memoryStore.questionSets.find((s: any) => s.id === id);
+      return (set ? [set] : []) as unknown as T;
+    }
+
+    case 'sp_get_questions_by_set_id': {
+      const [setId] = params;
+      const set = memoryStore.questionSets.find((s: any) => s.id === setId);
+      return (set?.questions || []).map((q: any, i: number) => ({
+        id: q.id,
+        setId,
+        promptText: q.prompt_text ?? q.promptText,
+        answer: q.answer,
+        options: q.options,
+        type: q.type || 'multiple_choice',
+        position: q.position ?? i + 1,
+        hint: q.hint || null,
+      })) as unknown as T;
+    }
+
+    case 'sp_upsert_question_set': {
+      const [id, ownerId, ownerName, title, description, subject, gradeLevel, isPublic, tags, createdAt, updatedAt] = params;
+      const existingIdx = memoryStore.questionSets.findIndex((s: any) => s.id === id);
+      const setObj = {
+        id,
+        ownerId,
+        ownerName,
+        title,
+        description,
+        subject,
+        gradeLevel,
+        isPublic: Boolean(isPublic),
+        tags,
+        createdAt,
+        updatedAt,
+        questions: existingIdx >= 0 ? memoryStore.questionSets[existingIdx].questions : [],
+      };
+      if (existingIdx >= 0) {
+        memoryStore.questionSets[existingIdx] = setObj;
+      } else {
+        memoryStore.questionSets.unshift(setObj);
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_delete_questions_by_set_id': {
+      const [setId] = params;
+      const set = memoryStore.questionSets.find((s: any) => s.id === setId);
+      if (set) set.questions = [];
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_insert_question': {
+      const [id, setId, promptText, answer, options, type, position, hint] = params;
+      const set = memoryStore.questionSets.find((s: any) => s.id === setId);
+      if (set) {
+        if (!set.questions) set.questions = [];
+        set.questions.push({
+          id,
+          setId,
+          promptText,
+          answer,
+          options,
+          type,
+          position,
+          hint,
+        });
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_delete_question_set': {
+      const [id] = params;
+      const idx = memoryStore.questionSets.findIndex((s: any) => s.id === id);
+      if (idx >= 0) memoryStore.questionSets.splice(idx, 1);
+      return [{ affected_rows: idx >= 0 ? 1 : 0 }] as unknown as T;
+    }
+
+    case 'sp_get_assignments':
+      return memoryStore.assignments.map((a: any) => ({
+        id: a.id,
+        teacherId: a.teacher_id ?? a.teacherId,
+        teacherName: a.teacher_name ?? a.teacherName,
+        classId: a.class_id ?? a.classId,
+        className: a.class_name ?? a.className,
+        questionSetId: a.question_set_id ?? a.questionSetId,
+        questionSetTitle: a.question_set_title ?? a.questionSetTitle,
+        gameSlug: a.game_slug ?? a.gameSlug,
+        gameName: a.game_name ?? a.gameName,
+        joinCode: a.join_code ?? a.joinCode,
+        dueDate: a.due_date ?? a.dueDate,
+        rewardsEnabled: Boolean(a.rewards_enabled ?? a.rewardsEnabled),
+        createdAt: a.created_at ?? a.createdAt,
+      })) as unknown as T;
+
+    case 'sp_create_assignment': {
+      const [id, teacherId, teacherName, classId, className, questionSetId, questionSetTitle, gameSlug, gameName, joinCode, dueDate, rewardsEnabled, createdAt] = params;
+      memoryStore.assignments.unshift({
+        id,
+        teacher_id: teacherId,
+        teacher_name: teacherName,
+        class_id: classId,
+        class_name: className,
+        question_set_id: questionSetId,
+        question_set_title: questionSetTitle,
+        game_slug: gameSlug,
+        game_name: gameName,
+        join_code: joinCode,
+        due_date: dueDate,
+        rewards_enabled: Boolean(rewardsEnabled),
+        created_at: createdAt,
+      } as any);
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_delete_assignment': {
+      const [id] = params;
+      const idx = memoryStore.assignments.findIndex((a: any) => a.id === id);
+      if (idx >= 0) memoryStore.assignments.splice(idx, 1);
+      return [{ affected_rows: idx >= 0 ? 1 : 0 }] as unknown as T;
+    }
+
+    case 'sp_get_attempts':
+      return memoryStore.attempts.map((att: any) => ({
+        id: att.id,
+        assignmentId: att.assignment_id ?? att.assignmentId,
+        studentId: att.student_id ?? att.studentId,
+        studentName: att.student_name ?? att.studentName,
+        questionSetId: att.question_set_id ?? att.questionSetId,
+        questionSetTitle: att.question_set_title ?? att.questionSetTitle,
+        gameSlug: att.game_slug ?? att.gameSlug,
+        score: att.score ?? 0,
+        accuracy: att.accuracy ?? 0,
+        totalQuestions: att.total_questions ?? att.totalQuestions ?? 0,
+        correctCount: att.correct_count ?? att.correctCount ?? 0,
+        completedAt: att.completed_at ?? att.completedAt,
+      })) as unknown as T;
+
+    case 'sp_get_attempt_answers': {
+      const [attemptId] = params;
+      const att = memoryStore.attempts.find((a: any) => a.id === attemptId);
+      return (att?.answers || []).map((ans: any) => ({
+        questionId: ans.question_id ?? ans.questionId,
+        questionPrompt: ans.question_prompt ?? ans.questionPrompt,
+        studentAnswer: ans.student_answer ?? ans.studentAnswer,
+        correctAnswer: ans.correct_answer ?? ans.correctAnswer,
+        isCorrect: Boolean(ans.is_correct ?? ans.isCorrect),
+      })) as unknown as T;
+    }
+
+    case 'sp_record_attempt': {
+      const [id, assignmentId, studentId, studentName, questionSetId, questionSetTitle, gameSlug, score, accuracy, totalQuestions, correctCount, completedAt] = params;
+      memoryStore.attempts.unshift({
+        id,
+        assignmentId,
+        studentId,
+        studentName,
+        questionSetId,
+        questionSetTitle,
+        gameSlug,
+        score,
+        accuracy,
+        totalQuestions,
+        correctCount,
+        completedAt,
+        answers: [],
+      });
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_add_attempt_answer': {
+      const [attemptId, questionId, questionPrompt, studentAnswer, correctAnswer, isCorrect] = params;
+      const att = memoryStore.attempts.find((a: any) => a.id === attemptId);
+      if (att) {
+        if (!att.answers) att.answers = [];
+        att.answers.push({
+          questionId,
+          questionPrompt,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: Boolean(isCorrect),
+        });
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_get_stickers':
+      return memoryStore.stickers.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        rarity: s.rarity,
+        category: s.category,
+        emoji: s.emoji,
+        description: s.description,
+      })) as unknown as T;
+
+    case 'sp_get_roster':
+      return memoryStore.roster.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        avatar: r.avatar,
+        stars: r.stars ?? 0,
+        points: r.points ?? 0,
+      })) as unknown as T;
+
+    case 'sp_add_student': {
+      const [id, nameVal, avatar] = params;
+      memoryStore.roster.push({
+        id,
+        name: nameVal,
+        avatar: avatar || '🧑',
+        stars: 0,
+        points: 0,
+      });
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_update_student': {
+      const [id, nameVal, avatar, stars, points] = params;
+      const student = memoryStore.roster.find((r: any) => r.id === id);
+      if (student) {
+        if (nameVal !== null && nameVal !== undefined) student.name = nameVal;
+        if (avatar !== null && avatar !== undefined) student.avatar = avatar;
+        if (stars !== null && stars !== undefined) student.stars = stars;
+        if (points !== null && points !== undefined) student.points = points;
+      }
+      return [{ affected_rows: student ? 1 : 0 }] as unknown as T;
+    }
+
+    case 'sp_delete_student': {
+      const [id] = params;
+      const idx = memoryStore.roster.findIndex((r: any) => r.id === id);
+      if (idx >= 0) memoryStore.roster.splice(idx, 1);
+      return [{ affected_rows: idx >= 0 ? 1 : 0 }] as unknown as T;
+    }
+
+    case 'sp_get_rewards': {
+      const [studentId] = params;
+      const rw: any = memoryStore.rewards.find((r: any) => (r.student_id || r.studentId) === studentId);
+      if (!rw) return [] as unknown as T;
+      return [{
+        studentId: rw.student_id ?? rw.studentId,
+        points: rw.points,
+        ticketsEarned: rw.tickets_earned ?? rw.ticketsEarned,
+        unlockedStickerIds: rw.unlocked_sticker_ids ?? rw.unlockedStickerIds,
+      }] as unknown as T;
+    }
+
+    case 'sp_update_rewards': {
+      const [studentId, points, ticketsEarned, unlockedStickerIds] = params;
+      const rw: any = memoryStore.rewards.find((r: any) => (r.student_id || r.studentId) === studentId);
+      if (rw) {
+        if (points !== null && points !== undefined) rw.points = points;
+        if (ticketsEarned !== null && ticketsEarned !== undefined) rw.tickets_earned = ticketsEarned;
+        if (unlockedStickerIds !== null && unlockedStickerIds !== undefined) rw.unlocked_sticker_ids = unlockedStickerIds;
+      } else {
+        memoryStore.rewards.push({
+          student_id: studentId,
+          points: points || 0,
+          tickets_earned: ticketsEarned || 0,
+          unlocked_sticker_ids: unlockedStickerIds || '["stk-1","stk-2"]',
+        });
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    default:
+      console.warn(`Unknown stored procedure called: ${procName}`);
+      return [] as unknown as T;
+  }
+}
+
 export const pool = {
   async query<T = any>(sql: string, params?: any[]): Promise<[T, any]> {
     if (!isInMemoryMode && mysqlPool) {
@@ -55,346 +413,7 @@ export const pool = {
         isInMemoryMode = true;
       }
     }
-
-    const upperSql = sql.trim().toUpperCase();
-
-    if (upperSql.includes('SELECT 1')) {
-      return [[{ test: 1 }] as any, null];
-    }
-
-    // 1. Users
-    if (upperSql.includes('FROM USERS')) {
-      const rows = memoryStore.users.map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        isPro: u.is_pro,
-        avatarUrl: u.avatar_url,
-        className: u.class_name,
-      }));
-      return [rows as any, null];
-    }
-    if (upperSql.includes('UPDATE USERS')) {
-      if (params && params.length >= 6) {
-        const [isPro, name, email, avatarUrl, className, id] = params;
-        const u = memoryStore.users.find((x: any) => x.id === id);
-        if (u) {
-          if (isPro !== null && isPro !== undefined) u.is_pro = Boolean(isPro);
-          if (name) u.name = name;
-          if (email) u.email = email;
-          if (avatarUrl) u.avatar_url = avatarUrl;
-          if (className) u.class_name = className;
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    // 2. Games
-    if (upperSql.includes('FROM GAMES')) {
-      const rows = memoryStore.games.map((g: any) => ({
-        id: g.id,
-        name: g.name,
-        slug: g.slug,
-        description: g.description,
-        mechanic: g.mechanic,
-        badge: g.badge,
-        category: g.category,
-        minGrade: g.min_grade,
-        iconName: g.icon_name,
-        gradientBg: g.gradient_bg,
-        accentColor: g.accent_color,
-        imageUrl: g.image_url,
-      }));
-      return [rows as any, null];
-    }
-
-    // 3. Question Sets
-    if (upperSql.includes('FROM QUESTION_SETS')) {
-      if (upperSql.includes('WHERE ID = ?')) {
-        const set = memoryStore.questionSets.find((s: any) => s.id === params?.[0]);
-        return [(set ? [set] : []) as any, null];
-      }
-      return [memoryStore.questionSets as any, null];
-    }
-
-    if (upperSql.includes('FROM QUESTIONS WHERE SET_ID = ?')) {
-      const set = memoryStore.questionSets.find((s: any) => s.id === params?.[0]);
-      return [(set ? set.questions : []) as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO QUESTION_SETS')) {
-      if (params && params.length >= 11) {
-        const [id, ownerId, ownerName, title, description, subject, gradeLevel, isPublic, tagsJson, createdAt, updatedAt] = params;
-        const existingIdx = memoryStore.questionSets.findIndex((s: any) => s.id === id);
-        const newSet = {
-          id,
-          ownerId,
-          ownerName,
-          title,
-          description,
-          subject,
-          gradeLevel,
-          isPublic: Boolean(isPublic),
-          tags: tagsJson,
-          createdAt,
-          updatedAt,
-          questions: [],
-        };
-        if (existingIdx >= 0) {
-          memoryStore.questionSets[existingIdx] = newSet;
-        } else {
-          memoryStore.questionSets.unshift(newSet);
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('UPDATE QUESTION_SETS')) {
-      if (params && params.length >= 8) {
-        const [title, description, subject, gradeLevel, isPublic, tagsJson, updatedAt, id] = params;
-        const set = memoryStore.questionSets.find((s: any) => s.id === id);
-        if (set) {
-          set.title = title;
-          set.description = description;
-          set.subject = subject;
-          set.gradeLevel = gradeLevel;
-          set.isPublic = Boolean(isPublic);
-          set.tags = tagsJson;
-          set.updatedAt = updatedAt;
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('DELETE FROM QUESTIONS WHERE SET_ID = ?')) {
-      const set = memoryStore.questionSets.find((s: any) => s.id === params?.[0]);
-      if (set) set.questions = [];
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO QUESTIONS')) {
-      if (params && params.length >= 8) {
-        const [id, set_id, promptText, answer, optionsJson, type, position, hint] = params;
-        const set = memoryStore.questionSets.find((s: any) => s.id === set_id);
-        if (set) {
-          set.questions.push({
-            id,
-            promptText,
-            answer,
-            options: optionsJson,
-            type: type || 'multiple_choice',
-            position: position || 1,
-            hint: hint || null,
-          });
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('DELETE FROM QUESTION_SETS WHERE ID = ?')) {
-      const id = params?.[0];
-      const idx = memoryStore.questionSets.findIndex((s: any) => s.id === id);
-      if (idx >= 0) memoryStore.questionSets.splice(idx, 1);
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    // 4. Assignments
-    if (upperSql.includes('FROM ASSIGNMENTS')) {
-      const rows = memoryStore.assignments.map((a: any) => ({
-        id: a.id,
-        teacherId: a.teacher_id || a.teacherId,
-        teacherName: a.teacher_name || a.teacherName,
-        classId: a.class_id || a.classId,
-        className: a.class_name || a.className,
-        questionSetId: a.question_set_id || a.questionSetId,
-        questionSetTitle: a.question_set_title || a.questionSetTitle,
-        gameSlug: a.game_slug || a.gameSlug,
-        gameName: a.game_name || a.gameName,
-        joinCode: a.join_code || a.joinCode,
-        dueDate: a.due_date || a.dueDate,
-        rewardsEnabled: Boolean(a.rewards_enabled ?? a.rewardsEnabled),
-        createdAt: a.created_at || a.createdAt,
-      }));
-      return [rows as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO ASSIGNMENTS')) {
-      if (params && params.length >= 13) {
-        const [id, teacherId, teacherName, classId, className, questionSetId, questionSetTitle, gameSlug, gameName, joinCode, dueDate, rewardsEnabled, createdAt] = params;
-        memoryStore.assignments.unshift({
-          id,
-          teacher_id: teacherId,
-          teacher_name: teacherName,
-          class_id: classId,
-          class_name: className,
-          question_set_id: questionSetId,
-          question_set_title: questionSetTitle,
-          game_slug: gameSlug,
-          game_name: gameName,
-          join_code: joinCode,
-          due_date: dueDate,
-          rewards_enabled: Boolean(rewardsEnabled),
-          created_at: createdAt,
-        });
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('DELETE FROM ASSIGNMENTS WHERE ID = ?')) {
-      const id = params?.[0];
-      const idx = memoryStore.assignments.findIndex((a: any) => a.id === id);
-      if (idx >= 0) memoryStore.assignments.splice(idx, 1);
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    // 5. Attempts
-    if (upperSql.includes('FROM ATTEMPTS')) {
-      const rows = memoryStore.attempts.map((att: any) => ({
-        id: att.id,
-        assignmentId: att.assignment_id || att.assignmentId,
-        studentId: att.student_id || att.studentId,
-        studentName: att.student_name || att.studentName,
-        questionSetId: att.question_set_id || att.questionSetId,
-        questionSetTitle: att.question_set_title || att.questionSetTitle,
-        gameSlug: att.game_slug || att.gameSlug,
-        score: att.score,
-        accuracy: att.accuracy,
-        totalQuestions: att.total_questions || att.totalQuestions,
-        correctCount: att.correct_count || att.correctCount,
-        completedAt: att.completed_at || att.completedAt,
-      }));
-      return [rows as any, null];
-    }
-
-    if (upperSql.includes('FROM ATTEMPT_ANSWERS WHERE ATTEMPT_ID = ?')) {
-      const att = memoryStore.attempts.find((a: any) => a.id === params?.[0]);
-      return [(att ? (att.answers || []).map((ans: any) => ({
-        questionId: ans.question_id || ans.questionId,
-        questionPrompt: ans.question_prompt || ans.questionPrompt,
-        studentAnswer: ans.student_answer || ans.studentAnswer,
-        correctAnswer: ans.correct_answer || ans.correctAnswer,
-        isCorrect: Boolean(ans.is_correct ?? ans.isCorrect),
-      })) : []) as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO ATTEMPTS')) {
-      if (params && params.length >= 12) {
-        const [id, assignmentId, studentId, studentName, questionSetId, questionSetTitle, gameSlug, score, accuracy, totalQuestions, correctCount, completedAt] = params;
-        memoryStore.attempts.unshift({
-          id,
-          assignment_id: assignmentId,
-          student_id: studentId,
-          student_name: studentName,
-          question_set_id: questionSetId,
-          question_set_title: questionSetTitle,
-          game_slug: gameSlug,
-          score,
-          accuracy,
-          total_questions: totalQuestions,
-          correct_count: correctCount,
-          completed_at: completedAt,
-          answers: [],
-        });
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO ATTEMPT_ANSWERS')) {
-      if (params && params.length >= 6) {
-        const [attemptId, questionId, questionPrompt, studentAnswer, correctAnswer, isCorrect] = params;
-        const att = memoryStore.attempts.find((a: any) => a.id === attemptId);
-        if (att) {
-          if (!att.answers) att.answers = [];
-          att.answers.push({
-            question_id: questionId,
-            question_prompt: questionPrompt,
-            student_answer: studentAnswer,
-            correct_answer: correctAnswer,
-            is_correct: Boolean(isCorrect),
-          });
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    // 6. Stickers
-    if (upperSql.includes('FROM STICKERS')) {
-      return [memoryStore.stickers as any, null];
-    }
-
-    // 7. Roster
-    if (upperSql.includes('FROM ROSTER')) {
-      return [memoryStore.roster as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO ROSTER')) {
-      if (params && params.length >= 5) {
-        const [id, name, avatar, stars, points] = params;
-        memoryStore.roster.push({ id, name, avatar, stars: stars || 0, points: points || 0 });
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('UPDATE ROSTER')) {
-      if (params && params.length >= 5) {
-        const [name, avatar, stars, points, id] = params;
-        const student = memoryStore.roster.find((r: any) => r.id === id);
-        if (student) {
-          if (name) student.name = name;
-          if (avatar) student.avatar = avatar;
-          if (stars !== null && stars !== undefined) student.stars = stars;
-          if (points !== null && points !== undefined) student.points = points;
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('DELETE FROM ROSTER WHERE ID = ?')) {
-      const id = params?.[0];
-      const idx = memoryStore.roster.findIndex((r: any) => r.id === id);
-      if (idx >= 0) memoryStore.roster.splice(idx, 1);
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    // 8. Rewards
-    if (upperSql.includes('FROM REWARDS WHERE STUDENT_ID = ?')) {
-      const rw: any = memoryStore.rewards.find((r: any) => (r.student_id || r.studentId) === params?.[0]);
-      return [(rw ? [{
-        studentId: rw.student_id || rw.studentId,
-        points: rw.points,
-        ticketsEarned: rw.tickets_earned || rw.ticketsEarned,
-        unlockedStickerIds: rw.unlocked_sticker_ids || rw.unlockedStickerIds,
-      }] : []) as any, null];
-    }
-
-    if (upperSql.includes('UPDATE REWARDS')) {
-      if (params && params.length >= 4) {
-        const [points, ticketsEarned, stickerJson, studentId] = params;
-        const rw = memoryStore.rewards.find((r: any) => (r.student_id || r.studentId) === studentId);
-        if (rw) {
-          if (points !== null && points !== undefined) rw.points = points;
-          if (ticketsEarned !== null && ticketsEarned !== undefined) rw.tickets_earned = ticketsEarned;
-          rw.unlocked_sticker_ids = stickerJson;
-        }
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    if (upperSql.includes('INSERT INTO REWARDS')) {
-      if (params && params.length >= 4) {
-        const [studentId, points, ticketsEarned, stickerJson] = params;
-        memoryStore.rewards.push({
-          student_id: studentId,
-          points: points || 0,
-          tickets_earned: ticketsEarned || 0,
-          unlocked_sticker_ids: stickerJson,
-        });
-      }
-      return [{ affectedRows: 1 } as any, null];
-    }
-
-    return [[] as any, null];
+    return [[{ test: 1 }] as any, null];
   },
 };
 
@@ -408,10 +427,10 @@ export async function initDatabase() {
   }
 
   try {
-    const connection = await Promise.race([
+    const connection = (await Promise.race([
       mysqlPool.getConnection(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 1500)),
-    ]) as any;
+    ])) as any;
 
     await connection.query('SET NAMES utf8mb4');
     connection.release();
