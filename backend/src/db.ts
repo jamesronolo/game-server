@@ -34,6 +34,35 @@ try {
   console.log('⚠️ Could not initialize MySQL pool:', err);
 }
 
+// ----- Programming Quiz Seed Data -----
+const PROGRAMMING_QUIZ_QUESTIONS = [
+  { id: 'pq1', number: 1, question: 'What does HTML stand for?', options: ['Hyper Trainer Marking Language','Hyper Text Markup Language','High Text Machine Language','Hyperlink Text Management Language'], correctOption: 'B', explanation: 'HTML stands for HyperText Markup Language, the standard markup language for creating web pages.' },
+  { id: 'pq2', number: 2, question: 'What does CSS stand for?', options: ['Creative Style Sheets','Computer Style Sheets','Cascading Style Sheets','Colorful Style Sheets'], correctOption: 'C', explanation: 'CSS stands for Cascading Style Sheets, used to style and layout web pages.' },
+  { id: 'pq3', number: 3, question: 'What does PHP stand for?', options: ['Personal Home Page','Private Hosting Program','PHP: Hypertext Preprocessor','Programmed Hyperlink Page'], correctOption: 'C', explanation: 'PHP: Hypertext Preprocessor is a server-side scripting language for web development.' },
+  { id: 'pq4', number: 4, question: 'What does SQL stand for?', options: ['Structured Question Language','Structured Query Language','Simple Query Logic','System Query Language'], correctOption: 'B', explanation: 'SQL stands for Structured Query Language, used to manage and query relational databases.' },
+  { id: 'pq5', number: 5, question: 'What is the main purpose of CSS?', options: ['To create databases','To style and design web pages','To handle server-side logic','To store data'], correctOption: 'B', explanation: 'CSS is used to style and design web pages — controlling colors, fonts, spacing, layout, and more.' },
+  { id: 'pq6', number: 6, question: 'What is the main purpose of HTML?', options: ['To style web pages','To structure the content of a web page','To run programs on a computer','To manage databases'], correctOption: 'B', explanation: 'HTML is used to structure the content of a web page, defining headings, paragraphs, links, images, etc.' },
+  { id: 'pq7', number: 7, question: 'What does JS stand for?', options: ['Java Syntax','JavaScript','Joint Script','Java Source'], correctOption: 'B', explanation: 'JS stands for JavaScript, a popular programming language for web interactivity.' },
+  { id: 'pq8', number: 8, question: 'Which of the following is a programming language used mainly for web development on the server side?', options: ['HTML','CSS','PHP','SVG'], correctOption: 'C', explanation: 'PHP is a server-side scripting language widely used for web development.' },
+  { id: 'pq9', number: 9, question: 'What does API stand for?', options: ['Application Programming Interface','Advanced Program Integration','Application Process Index','Automated Programming Instruction'], correctOption: 'A', explanation: 'API stands for Application Programming Interface — a way for different software to communicate.' },
+  { id: 'pq10', number: 10, question: 'What is a "variable" in programming?', options: ['A fixed value that never changes','A container used to store data values','A type of programming language','A software installation file'], correctOption: 'B', explanation: 'A variable is a named container used to store data values that can change during program execution.' },
+  { id: 'pq11', number: 11, question: 'What does IDE stand for?', options: ['Integrated Development Environment','Internal Data Engine','Interactive Design Editor','Integrated Design Element'], correctOption: 'A', explanation: 'IDE stands for Integrated Development Environment — a software application that provides tools for writing code.' },
+  { id: 'pq12', number: 12, question: 'Which symbol is commonly used to start a comment in Python?', options: ['//','#','<!--','/*'], correctOption: 'B', explanation: 'In Python, the # symbol is used to start a single-line comment.' },
+  { id: 'pq13', number: 13, question: 'What is a "function" in programming?', options: ['A type of computer virus','A reusable block of code that performs a specific task','A file format','A database table'], correctOption: 'B', explanation: 'A function is a reusable block of code designed to perform a specific task when called.' },
+  { id: 'pq14', number: 14, question: 'What does "debugging" mean?', options: ['Writing new code from scratch','Designing the layout of a website','Finding and fixing errors in code','Deleting a program completely'], correctOption: 'C', explanation: 'Debugging is the process of finding and fixing errors (bugs) in a computer program.' },
+  { id: 'pq15', number: 15, question: 'Which of these is NOT a programming language?', options: ['Python','Java','HTML','Photoshop'], correctOption: 'D', explanation: 'Photoshop is a graphic design tool, not a programming language. HTML is a markup language (not traditionally called a programming language), but Photoshop is definitively not one.' },
+  { id: 'pq16', number: 16, question: 'What does "URL" stand for?', options: ['Universal Resource Locator','Uniform Resource Locator','United Resource Link','Universal Reference Link'], correctOption: 'B', explanation: 'URL stands for Uniform Resource Locator, the address used to access resources on the internet.' },
+  { id: 'pq17', number: 17, question: 'What is an "array" used for in programming?', options: ['To store a single value','To style a webpage','To store multiple values in one variable','To connect to the internet'], correctOption: 'C', explanation: 'An array is a data structure that stores multiple values in a single variable.' },
+  { id: 'pq18', number: 18, question: 'What does "loop" mean in programming?', options: ['A way to store data permanently','A structure that repeats a block of code','A type of error','A design pattern for websites'], correctOption: 'B', explanation: 'A loop is a control structure that repeats a block of code until a specified condition is met.' },
+  { id: 'pq19', number: 19, question: 'Which of the following is used to create databases and manage data?', options: ['HTML','SQL','CSS','JS'], correctOption: 'B', explanation: 'SQL (Structured Query Language) is used to create and manage databases.' },
+  { id: 'pq20', number: 20, question: 'What is the file extension for a Python file?', options: ['.py','.java','.html','.exe'], correctOption: 'A', explanation: 'Python files use the .py extension.' },
+  { id: 'pq21', number: 21, question: 'What does "syntax error" mean?', options: ['The program runs too slowly','The code violates the rules of the programming language','The program uses too much memory','The internet connection failed'], correctOption: 'B', explanation: 'A syntax error occurs when code violates the grammar rules of the programming language.' },
+  { id: 'pq22', number: 22, question: 'What is the purpose of an "if statement" in programming?', options: ['To repeat code multiple times','To make decisions based on conditions','To style a webpage','To store data in a database'], correctOption: 'B', explanation: 'An if statement is used to execute code only when a specific condition is true — it enables decision-making.' },
+  { id: 'pq23', number: 23, question: 'What does "OOP" stand for?', options: ['Object-Oriented Programming','Open-Output Programming','Online Operating Protocol','Optimal Operation Process'], correctOption: 'A', explanation: 'OOP stands for Object-Oriented Programming, a paradigm based on objects and classes.' },
+  { id: 'pq24', number: 24, question: 'What is a "compiler" used for?', options: ['To design website layouts','To translate source code into machine code','To store files in the cloud','To connect to a database'], correctOption: 'B', explanation: 'A compiler translates high-level source code into machine code that a computer can execute.' },
+  { id: 'pq25', number: 25, question: 'Which of these is a popular version control system used by programmers?', options: ['Git','Word','Excel','Photoshop'], correctOption: 'A', explanation: 'Git is the most widely used distributed version control system for tracking code changes.' },
+];
+
 export const memoryStore = {
   users: [...INITIAL_USERS],
   games: [...INITIAL_GAMES],
@@ -43,6 +72,8 @@ export const memoryStore = {
   stickers: [...INITIAL_STICKERS],
   roster: [...INITIAL_ROSTER],
   rewards: [...INITIAL_REWARDS],
+  programmingQuestions: [...PROGRAMMING_QUIZ_QUESTIONS],
+  programmingAttempts: [] as any[],
 };
 
 export const pool = {
@@ -389,6 +420,33 @@ export const pool = {
           points: points || 0,
           tickets_earned: ticketsEarned || 0,
           unlocked_sticker_ids: stickerJson,
+        });
+      }
+      return [{ affectedRows: 1 } as any, null];
+    }
+
+    // 9. Programming Quiz Questions
+    if (upperSql.includes('FROM PROGRAMMING_QUIZ_QUESTIONS')) {
+      return [memoryStore.programmingQuestions as any, null];
+    }
+
+    // 10. Programming Quiz Attempts
+    if (upperSql.includes('FROM PROGRAMMING_QUIZ_ATTEMPTS')) {
+      return [memoryStore.programmingAttempts as any, null];
+    }
+
+    if (upperSql.includes('INSERT INTO PROGRAMMING_QUIZ_ATTEMPTS')) {
+      if (params && params.length >= 7) {
+        const [id, studentName, score, accuracy, totalQuestions, correctCount, completedAt, answersJson] = params;
+        memoryStore.programmingAttempts.unshift({
+          id,
+          studentName,
+          score,
+          accuracy,
+          totalQuestions,
+          correctCount,
+          completedAt,
+          answers: answersJson,
         });
       }
       return [{ affectedRows: 1 } as any, null];
