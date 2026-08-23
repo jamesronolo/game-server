@@ -7,8 +7,12 @@ export const programmingQuizRouter = Router();
 programmingQuizRouter.get('/questions', async (req, res) => {
   try {
     const [rows] = await pool.query<any[]>('SELECT id, number, question, options, correctOption, explanation FROM programming_quiz_questions ORDER BY number ASC');
+    const parsedRows = rows.map((r: any) => ({
+      ...r,
+      options: typeof r.options === 'string' ? JSON.parse(r.options) : r.options,
+    }));
     // Strip correctOption from public response so frontend can't cheat
-    const safeRows = rows.map(({ correctOption: _co, explanation: _ex, ...rest }) => rest);
+    const safeRows = parsedRows.map(({ correctOption: _co, explanation: _ex, ...rest }) => rest);
     res.json(safeRows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -23,7 +27,11 @@ programmingQuizRouter.post('/submit', async (req, res) => {
       studentName?: string;
     };
 
-    const [questions] = await pool.query<any[]>('SELECT id, number, question, options, correctOption, explanation FROM programming_quiz_questions ORDER BY number ASC');
+    const [rawQuestions] = await pool.query<any[]>('SELECT id, number, question, options, correctOption, explanation FROM programming_quiz_questions ORDER BY number ASC');
+    const questions = rawQuestions.map((r: any) => ({
+      ...r,
+      options: typeof r.options === 'string' ? JSON.parse(r.options) : r.options,
+    }));
 
     const graded = answers.map((a) => {
       const q = questions.find((q: any) => q.id === a.questionId);

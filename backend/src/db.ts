@@ -490,14 +490,55 @@ export async function initDatabase() {
   try {
     const connection = (await Promise.race([
       mysqlPool.getConnection(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 1500)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 2500)),
     ])) as any;
 
     await connection.query('SET NAMES utf8mb4');
+
+    // Ensure programming quiz tables exist in MySQL
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS programming_quiz_questions (
+        id VARCHAR(50) PRIMARY KEY,
+        number INT NOT NULL,
+        question TEXT NOT NULL,
+        options JSON NOT NULL,
+        correctOption VARCHAR(10) NOT NULL,
+        explanation TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS programming_quiz_attempts (
+        id VARCHAR(100) PRIMARY KEY,
+        studentName VARCHAR(255) NOT NULL,
+        score INT NOT NULL DEFAULT 0,
+        accuracy INT NOT NULL DEFAULT 0,
+        totalQuestions INT NOT NULL DEFAULT 25,
+        correctCount INT NOT NULL DEFAULT 0,
+        completedAt VARCHAR(100) NOT NULL,
+        answers JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Check if questions are seeded in MySQL
+    const [qCount] = (await connection.query('SELECT COUNT(*) as count FROM programming_quiz_questions')) as any[];
+    if (qCount && qCount[0] && qCount[0].count === 0) {
+      console.log('🌱 Seeding 25 Programming Quiz questions into MySQL...');
+      for (const q of PROGRAMMING_QUIZ_QUESTIONS) {
+        await connection.query(
+          'INSERT INTO programming_quiz_questions (id, number, question, options, correctOption, explanation) VALUES (?, ?, ?, ?, ?, ?)',
+          [q.id, q.number, q.question, JSON.stringify(q.options), q.correctOption, q.explanation]
+        );
+      }
+      console.log('✅ Programming Quiz questions seeded successfully in MySQL.');
+    }
+
     connection.release();
-    console.log('✅ Connected to MySQL database successfully.');
+    console.log('✅ Connected to MySQL database and verified all schema tables.');
   } catch (err) {
-    console.log('⚠️ Local MySQL instance not available on port 3306. Switching to Zero-Config In-Memory Mode.');
+    console.log('⚠️ Local MySQL instance not available on port 3306 or error initializing. Switching to Zero-Config In-Memory Mode:', (err as Error).message);
     isInMemoryMode = true;
   }
 }
