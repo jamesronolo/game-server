@@ -34,6 +34,35 @@ try {
   console.log('⚠️ Could not initialize MySQL pool:', err);
 }
 
+// ----- Programming Quiz Seed Data -----
+const PROGRAMMING_QUIZ_QUESTIONS = [
+  { id: 'pq1', number: 1, question: 'What does HTML stand for?', options: ['Hyper Trainer Marking Language','Hyper Text Markup Language','High Text Machine Language','Hyperlink Text Management Language'], correctOption: 'B', explanation: 'HTML stands for HyperText Markup Language, the standard markup language for creating web pages.' },
+  { id: 'pq2', number: 2, question: 'What does CSS stand for?', options: ['Creative Style Sheets','Computer Style Sheets','Cascading Style Sheets','Colorful Style Sheets'], correctOption: 'C', explanation: 'CSS stands for Cascading Style Sheets, used to style and layout web pages.' },
+  { id: 'pq3', number: 3, question: 'What does PHP stand for?', options: ['Personal Home Page','Private Hosting Program','PHP: Hypertext Preprocessor','Programmed Hyperlink Page'], correctOption: 'C', explanation: 'PHP: Hypertext Preprocessor is a server-side scripting language for web development.' },
+  { id: 'pq4', number: 4, question: 'What does SQL stand for?', options: ['Structured Question Language','Structured Query Language','Simple Query Logic','System Query Language'], correctOption: 'B', explanation: 'SQL stands for Structured Query Language, used to manage and query relational databases.' },
+  { id: 'pq5', number: 5, question: 'What is the main purpose of CSS?', options: ['To create databases','To style and design web pages','To handle server-side logic','To store data'], correctOption: 'B', explanation: 'CSS is used to style and design web pages — controlling colors, fonts, spacing, layout, and more.' },
+  { id: 'pq6', number: 6, question: 'What is the main purpose of HTML?', options: ['To style web pages','To structure the content of a web page','To run programs on a computer','To manage databases'], correctOption: 'B', explanation: 'HTML is used to structure the content of a web page, defining headings, paragraphs, links, images, etc.' },
+  { id: 'pq7', number: 7, question: 'What does JS stand for?', options: ['Java Syntax','JavaScript','Joint Script','Java Source'], correctOption: 'B', explanation: 'JS stands for JavaScript, a popular programming language for web interactivity.' },
+  { id: 'pq8', number: 8, question: 'Which of the following is a programming language used mainly for web development on the server side?', options: ['HTML','CSS','PHP','SVG'], correctOption: 'C', explanation: 'PHP is a server-side scripting language widely used for web development.' },
+  { id: 'pq9', number: 9, question: 'What does API stand for?', options: ['Application Programming Interface','Advanced Program Integration','Application Process Index','Automated Programming Instruction'], correctOption: 'A', explanation: 'API stands for Application Programming Interface — a way for different software to communicate.' },
+  { id: 'pq10', number: 10, question: 'What is a "variable" in programming?', options: ['A fixed value that never changes','A container used to store data values','A type of programming language','A software installation file'], correctOption: 'B', explanation: 'A variable is a named container used to store data values that can change during program execution.' },
+  { id: 'pq11', number: 11, question: 'What does IDE stand for?', options: ['Integrated Development Environment','Internal Data Engine','Interactive Design Editor','Integrated Design Element'], correctOption: 'A', explanation: 'IDE stands for Integrated Development Environment — a software application that provides tools for writing code.' },
+  { id: 'pq12', number: 12, question: 'Which symbol is commonly used to start a comment in Python?', options: ['//','#','<!--','/*'], correctOption: 'B', explanation: 'In Python, the # symbol is used to start a single-line comment.' },
+  { id: 'pq13', number: 13, question: 'What is a "function" in programming?', options: ['A type of computer virus','A reusable block of code that performs a specific task','A file format','A database table'], correctOption: 'B', explanation: 'A function is a reusable block of code designed to perform a specific task when called.' },
+  { id: 'pq14', number: 14, question: 'What does "debugging" mean?', options: ['Writing new code from scratch','Designing the layout of a website','Finding and fixing errors in code','Deleting a program completely'], correctOption: 'C', explanation: 'Debugging is the process of finding and fixing errors (bugs) in a computer program.' },
+  { id: 'pq15', number: 15, question: 'Which of these is NOT a programming language?', options: ['Python','Java','HTML','Photoshop'], correctOption: 'D', explanation: 'Photoshop is a graphic design tool, not a programming language. HTML is a markup language (not traditionally called a programming language), but Photoshop is definitively not one.' },
+  { id: 'pq16', number: 16, question: 'What does "URL" stand for?', options: ['Universal Resource Locator','Uniform Resource Locator','United Resource Link','Universal Reference Link'], correctOption: 'B', explanation: 'URL stands for Uniform Resource Locator, the address used to access resources on the internet.' },
+  { id: 'pq17', number: 17, question: 'What is an "array" used for in programming?', options: ['To store a single value','To style a webpage','To store multiple values in one variable','To connect to the internet'], correctOption: 'C', explanation: 'An array is a data structure that stores multiple values in a single variable.' },
+  { id: 'pq18', number: 18, question: 'What does "loop" mean in programming?', options: ['A way to store data permanently','A structure that repeats a block of code','A type of error','A design pattern for websites'], correctOption: 'B', explanation: 'A loop is a control structure that repeats a block of code until a specified condition is met.' },
+  { id: 'pq19', number: 19, question: 'Which of the following is used to create databases and manage data?', options: ['HTML','SQL','CSS','JS'], correctOption: 'B', explanation: 'SQL (Structured Query Language) is used to create and manage databases.' },
+  { id: 'pq20', number: 20, question: 'What is the file extension for a Python file?', options: ['.py','.java','.html','.exe'], correctOption: 'A', explanation: 'Python files use the .py extension.' },
+  { id: 'pq21', number: 21, question: 'What does "syntax error" mean?', options: ['The program runs too slowly','The code violates the rules of the programming language','The program uses too much memory','The internet connection failed'], correctOption: 'B', explanation: 'A syntax error occurs when code violates the grammar rules of the programming language.' },
+  { id: 'pq22', number: 22, question: 'What is the purpose of an "if statement" in programming?', options: ['To repeat code multiple times','To make decisions based on conditions','To style a webpage','To store data in a database'], correctOption: 'B', explanation: 'An if statement is used to execute code only when a specific condition is true — it enables decision-making.' },
+  { id: 'pq23', number: 23, question: 'What does "OOP" stand for?', options: ['Object-Oriented Programming','Open-Output Programming','Online Operating Protocol','Optimal Operation Process'], correctOption: 'A', explanation: 'OOP stands for Object-Oriented Programming, a paradigm based on objects and classes.' },
+  { id: 'pq24', number: 24, question: 'What is a "compiler" used for?', options: ['To design website layouts','To translate source code into machine code','To store files in the cloud','To connect to a database'], correctOption: 'B', explanation: 'A compiler translates high-level source code into machine code that a computer can execute.' },
+  { id: 'pq25', number: 25, question: 'Which of these is a popular version control system used by programmers?', options: ['Git','Word','Excel','Photoshop'], correctOption: 'A', explanation: 'Git is the most widely used distributed version control system for tracking code changes.' },
+];
+
 export const memoryStore = {
   users: [...INITIAL_USERS],
   games: [...INITIAL_GAMES],
@@ -43,6 +72,9 @@ export const memoryStore = {
   stickers: [...INITIAL_STICKERS],
   roster: [...INITIAL_ROSTER],
   rewards: [...INITIAL_REWARDS],
+  programmingQuestions: [...PROGRAMMING_QUIZ_QUESTIONS],
+  programmingAttempts: [] as any[],
+  grades: [] as any[],
 };
 
 /**
@@ -60,9 +92,11 @@ export async function callProcedure<T = any>(procName: string, params: any[] = [
         return results[0] as T;
       }
       return results as T;
-    } catch (err) {
-      console.warn(`⚠️ MySQL error executing ${procName}, using in-memory store fallback:`, (err as Error).message);
-      isInMemoryMode = true;
+    } catch (err: any) {
+      console.warn(`⚠️ MySQL error executing ${procName}, using in-memory store fallback:`, err.message);
+      if (err.code === 'ECONNREFUSED' || err.code === 'PROTOCOL_CONNECTION_LOST' || err.message?.includes('Connection timeout')) {
+        isInMemoryMode = true;
+      }
     }
   }
 
@@ -397,6 +431,34 @@ function executeInMemoryProcedure<T>(procName: string, params: any[]): T {
       return [{ affected_rows: 1 }] as unknown as T;
     }
 
+    // ---- Grades ----
+    case 'sp_get_grades': {
+      const [studentIdFilter] = params;
+      const results = studentIdFilter
+        ? memoryStore.grades.filter((g: any) => g.studentId === studentIdFilter)
+        : [...memoryStore.grades];
+      return results as unknown as T;
+    }
+
+    case 'sp_upsert_grade': {
+      const [id, studentId, studentName, subject, gradeValue, term, notes, recordedBy, createdAt] = params;
+      const existingIdx = memoryStore.grades.findIndex((g: any) => g.id === id);
+      const gradeObj = { id, studentId, studentName, subject, gradeValue, term, notes, recordedBy, createdAt };
+      if (existingIdx >= 0) {
+        memoryStore.grades[existingIdx] = gradeObj;
+      } else {
+        memoryStore.grades.unshift(gradeObj);
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_delete_grade': {
+      const [id] = params;
+      const idx = memoryStore.grades.findIndex((g: any) => g.id === id);
+      if (idx >= 0) memoryStore.grades.splice(idx, 1);
+      return [{ affected_rows: idx >= 0 ? 1 : 0 }] as unknown as T;
+    }
+
     default:
       console.warn(`Unknown stored procedure called: ${procName}`);
       return [] as unknown as T;
@@ -413,6 +475,36 @@ export const pool = {
         isInMemoryMode = true;
       }
     }
+
+    const upperSql = sql.trim().toUpperCase();
+
+    // Programming Quiz Questions Query
+    if (upperSql.includes('PROGRAMMING_QUIZ_QUESTIONS')) {
+      return [memoryStore.programmingQuestions as any, null];
+    }
+
+    // Programming Quiz Attempts Query
+    if (upperSql.includes('INSERT INTO PROGRAMMING_QUIZ_ATTEMPTS')) {
+      if (params && params.length >= 7) {
+        const [id, studentName, score, accuracy, totalQuestions, correctCount, completedAt, answersJson] = params;
+        memoryStore.programmingAttempts.unshift({
+          id,
+          studentName,
+          score,
+          accuracy,
+          totalQuestions,
+          correctCount,
+          completedAt,
+          answers: answersJson,
+        });
+      }
+      return [{ affectedRows: 1 } as any, null];
+    }
+
+    if (upperSql.includes('PROGRAMMING_QUIZ_ATTEMPTS')) {
+      return [memoryStore.programmingAttempts as any, null];
+    }
+
     return [[{ test: 1 }] as any, null];
   },
 };
@@ -429,14 +521,108 @@ export async function initDatabase() {
   try {
     const connection = (await Promise.race([
       mysqlPool.getConnection(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 1500)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 2500)),
     ])) as any;
 
     await connection.query('SET NAMES utf8mb4');
+
+    // Ensure programming quiz tables exist in MySQL
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS programming_quiz_questions (
+        id VARCHAR(50) PRIMARY KEY,
+        number INT NOT NULL,
+        question TEXT NOT NULL,
+        options LONGTEXT NOT NULL,
+        correctOption VARCHAR(10) NOT NULL,
+        explanation TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS programming_quiz_attempts (
+        id VARCHAR(100) PRIMARY KEY,
+        studentName VARCHAR(255) NOT NULL,
+        score INT NOT NULL DEFAULT 0,
+        accuracy INT NOT NULL DEFAULT 0,
+        totalQuestions INT NOT NULL DEFAULT 25,
+        correctCount INT NOT NULL DEFAULT 0,
+        completedAt VARCHAR(100) NOT NULL,
+        answers LONGTEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Ensure grades table exists
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS grades (
+        id VARCHAR(100) PRIMARY KEY,
+        student_id VARCHAR(255) NOT NULL,
+        student_name VARCHAR(255) NOT NULL DEFAULT '',
+        subject VARCHAR(255) NOT NULL,
+        grade_value VARCHAR(10) NOT NULL,
+        term VARCHAR(100) NOT NULL DEFAULT '',
+        notes TEXT,
+        recorded_by VARCHAR(255) NOT NULL DEFAULT '',
+        created_at VARCHAR(100) NOT NULL,
+        INDEX idx_student_id (student_id(191))
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('✅ Grades table verified.');
+
+    // Ensure stored procedures have correct utf8mb4 collation to avoid illegal mix of collations
+    await connection.query('DROP PROCEDURE IF EXISTS `sp_add_student`');
+    await connection.query(`
+      CREATE PROCEDURE \`sp_add_student\`(
+        IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      )
+      BEGIN
+        INSERT INTO \`roster\` (\`id\`, \`name\`, \`avatar\`, \`stars\`, \`points\`)
+        VALUES (p_id, p_name, COALESCE(p_avatar, _utf8mb4'🧑' COLLATE utf8mb4_unicode_ci), 0, 0);
+      END
+    `);
+
+    await connection.query('DROP PROCEDURE IF EXISTS `sp_update_student`');
+    await connection.query(`
+      CREATE PROCEDURE \`sp_update_student\`(
+        IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_stars INT,
+        IN p_points INT
+      )
+      BEGIN
+        UPDATE \`roster\`
+        SET 
+          \`name\` = COALESCE(p_name, \`name\`),
+          \`avatar\` = COALESCE(p_avatar, \`avatar\`),
+          \`stars\` = COALESCE(p_stars, \`stars\`),
+          \`points\` = COALESCE(p_points, \`points\`)
+        WHERE \`id\` = p_id;
+        SELECT ROW_COUNT() AS affected_rows;
+      END
+    `);
+    console.log('✅ Stored procedures sp_add_student & sp_update_student verified.');
+
+    // Check if questions are seeded in MySQL
+    const [qCount] = (await connection.query('SELECT COUNT(*) as count FROM programming_quiz_questions')) as any[];
+    if (qCount && qCount[0] && qCount[0].count === 0) {
+      console.log('🌱 Seeding 25 Programming Quiz questions into MySQL...');
+      for (const q of PROGRAMMING_QUIZ_QUESTIONS) {
+        await connection.query(
+          'INSERT INTO programming_quiz_questions (id, number, question, options, correctOption, explanation) VALUES (?, ?, ?, ?, ?, ?)',
+          [q.id, q.number, q.question, JSON.stringify(q.options), q.correctOption, q.explanation]
+        );
+      }
+      console.log('✅ Programming Quiz questions seeded successfully in MySQL.');
+    }
+
     connection.release();
-    console.log('✅ Connected to MySQL database successfully.');
+    console.log('✅ Connected to MySQL database and verified all schema tables.');
   } catch (err) {
-    console.log('⚠️ Local MySQL instance not available on port 3306. Switching to Zero-Config In-Memory Mode.');
+    console.log('⚠️ Local MySQL instance not available on port 3306 or error initializing. Switching to Zero-Config In-Memory Mode:', (err as Error).message);
     isInMemoryMode = true;
   }
 }

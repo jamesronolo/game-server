@@ -426,22 +426,22 @@ DELIMITER ;
 DROP PROCEDURE IF EXISTS `sp_add_student`;
 DELIMITER //
 CREATE PROCEDURE `sp_add_student`(
-    IN p_id VARCHAR(191),
-    IN p_name VARCHAR(255),
-    IN p_avatar VARCHAR(255)
+    IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 )
 BEGIN
     INSERT INTO `roster` (`id`, `name`, `avatar`, `stars`, `points`)
-    VALUES (p_id, p_name, COALESCE(p_avatar, '🧑'), 0, 0);
+    VALUES (p_id, p_name, COALESCE(p_avatar, _utf8mb4'🧑' COLLATE utf8mb4_unicode_ci), 0, 0);
 END //
 DELIMITER ;
 
 DROP PROCEDURE IF EXISTS `sp_update_student`;
 DELIMITER //
 CREATE PROCEDURE `sp_update_student`(
-    IN p_id VARCHAR(191),
-    IN p_name VARCHAR(255),
-    IN p_avatar VARCHAR(255),
+    IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
     IN p_stars INT,
     IN p_points INT
 )
