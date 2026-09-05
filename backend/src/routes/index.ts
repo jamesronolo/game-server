@@ -10,6 +10,7 @@ import { rosterRouter } from './roster.routes.js';
 import { rewardsRouter } from './rewards.routes.js';
 import { aiRouter } from './ai.routes.js';
 import { programmingQuizRouter } from './programmingQuiz.routes.js';
+import { gradesRouter } from './grades.routes.js';
 
 export const apiRouter = Router();
 
@@ -33,3 +34,4 @@ apiRouter.use('/roster', rosterRouter);
 apiRouter.use('/rewards', rewardsRouter);
 apiRouter.use('/ai', aiRouter);
 apiRouter.use('/programming-quiz', programmingQuizRouter);
+apiRouter.use('/grades', gradesRouter);

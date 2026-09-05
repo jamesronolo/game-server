@@ -26,16 +26,8 @@ export const INITIAL_USERS = [
     avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
     class_name: 'Grade 3 - Room 2B',
   },
-  {
-    id: 'u-parent-1',
-    name: 'David Martinez',
-    email: 'david.martinez@gmail.com',
-    role: 'parent',
-    is_pro: false,
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    class_name: null,
-  },
 ];
+
 
 export const INITIAL_GAMES = [
   {

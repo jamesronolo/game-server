@@ -74,6 +74,7 @@ export const memoryStore = {
   rewards: [...INITIAL_REWARDS],
   programmingQuestions: [...PROGRAMMING_QUIZ_QUESTIONS],
   programmingAttempts: [] as any[],
+  grades: [] as any[],
 };
 
 /**
@@ -91,9 +92,11 @@ export async function callProcedure<T = any>(procName: string, params: any[] = [
         return results[0] as T;
       }
       return results as T;
-    } catch (err) {
-      console.warn(`⚠️ MySQL error executing ${procName}, using in-memory store fallback:`, (err as Error).message);
-      isInMemoryMode = true;
+    } catch (err: any) {
+      console.warn(`⚠️ MySQL error executing ${procName}, using in-memory store fallback:`, err.message);
+      if (err.code === 'ECONNREFUSED' || err.code === 'PROTOCOL_CONNECTION_LOST' || err.message?.includes('Connection timeout')) {
+        isInMemoryMode = true;
+      }
     }
   }
 
@@ -428,6 +431,34 @@ function executeInMemoryProcedure<T>(procName: string, params: any[]): T {
       return [{ affected_rows: 1 }] as unknown as T;
     }
 
+    // ---- Grades ----
+    case 'sp_get_grades': {
+      const [studentIdFilter] = params;
+      const results = studentIdFilter
+        ? memoryStore.grades.filter((g: any) => g.studentId === studentIdFilter)
+        : [...memoryStore.grades];
+      return results as unknown as T;
+    }
+
+    case 'sp_upsert_grade': {
+      const [id, studentId, studentName, subject, gradeValue, term, notes, recordedBy, createdAt] = params;
+      const existingIdx = memoryStore.grades.findIndex((g: any) => g.id === id);
+      const gradeObj = { id, studentId, studentName, subject, gradeValue, term, notes, recordedBy, createdAt };
+      if (existingIdx >= 0) {
+        memoryStore.grades[existingIdx] = gradeObj;
+      } else {
+        memoryStore.grades.unshift(gradeObj);
+      }
+      return [{ affected_rows: 1 }] as unknown as T;
+    }
+
+    case 'sp_delete_grade': {
+      const [id] = params;
+      const idx = memoryStore.grades.findIndex((g: any) => g.id === id);
+      if (idx >= 0) memoryStore.grades.splice(idx, 1);
+      return [{ affected_rows: idx >= 0 ? 1 : 0 }] as unknown as T;
+    }
+
     default:
       console.warn(`Unknown stored procedure called: ${procName}`);
       return [] as unknown as T;
@@ -501,7 +532,7 @@ export async function initDatabase() {
         id VARCHAR(50) PRIMARY KEY,
         number INT NOT NULL,
         question TEXT NOT NULL,
-        options JSON NOT NULL,
+        options LONGTEXT NOT NULL,
         correctOption VARCHAR(10) NOT NULL,
         explanation TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -517,10 +548,63 @@ export async function initDatabase() {
         totalQuestions INT NOT NULL DEFAULT 25,
         correctCount INT NOT NULL DEFAULT 0,
         completedAt VARCHAR(100) NOT NULL,
-        answers JSON NOT NULL,
+        answers LONGTEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure grades table exists
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS grades (
+        id VARCHAR(100) PRIMARY KEY,
+        student_id VARCHAR(255) NOT NULL,
+        student_name VARCHAR(255) NOT NULL DEFAULT '',
+        subject VARCHAR(255) NOT NULL,
+        grade_value VARCHAR(10) NOT NULL,
+        term VARCHAR(100) NOT NULL DEFAULT '',
+        notes TEXT,
+        recorded_by VARCHAR(255) NOT NULL DEFAULT '',
+        created_at VARCHAR(100) NOT NULL,
+        INDEX idx_student_id (student_id(191))
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('✅ Grades table verified.');
+
+    // Ensure stored procedures have correct utf8mb4 collation to avoid illegal mix of collations
+    await connection.query('DROP PROCEDURE IF EXISTS `sp_add_student`');
+    await connection.query(`
+      CREATE PROCEDURE \`sp_add_student\`(
+        IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      )
+      BEGIN
+        INSERT INTO \`roster\` (\`id\`, \`name\`, \`avatar\`, \`stars\`, \`points\`)
+        VALUES (p_id, p_name, COALESCE(p_avatar, _utf8mb4'🧑' COLLATE utf8mb4_unicode_ci), 0, 0);
+      END
+    `);
+
+    await connection.query('DROP PROCEDURE IF EXISTS `sp_update_student`');
+    await connection.query(`
+      CREATE PROCEDURE \`sp_update_student\`(
+        IN p_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_avatar VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        IN p_stars INT,
+        IN p_points INT
+      )
+      BEGIN
+        UPDATE \`roster\`
+        SET 
+          \`name\` = COALESCE(p_name, \`name\`),
+          \`avatar\` = COALESCE(p_avatar, \`avatar\`),
+          \`stars\` = COALESCE(p_stars, \`stars\`),
+          \`points\` = COALESCE(p_points, \`points\`)
+        WHERE \`id\` = p_id;
+        SELECT ROW_COUNT() AS affected_rows;
+      END
+    `);
+    console.log('✅ Stored procedures sp_add_student & sp_update_student verified.');
 
     // Check if questions are seeded in MySQL
     const [qCount] = (await connection.query('SELECT COUNT(*) as count FROM programming_quiz_questions')) as any[];
