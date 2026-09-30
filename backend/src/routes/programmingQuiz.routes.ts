@@ -25,7 +25,9 @@ programmingQuizRouter.post('/submit', async (req, res) => {
     const { answers, studentName } = req.body as {
       answers: { questionId: string; selectedOption: string }[];
       studentName?: string;
+      saveAttempt?: boolean;
     };
+    const saveAttempt = req.body.saveAttempt !== false;
 
     const [rawQuestions] = await pool.query<any[]>('SELECT id, number, question, options, correctOption, explanation FROM programming_quiz_questions ORDER BY number ASC');
     const questions = rawQuestions.map((r: any) => ({
@@ -61,10 +63,12 @@ programmingQuizRouter.post('/submit', async (req, res) => {
     const completedAt = new Date().toISOString();
     const name = studentName || 'Anonymous';
 
-    await pool.query(
-      'INSERT INTO programming_quiz_attempts (id, studentName, score, accuracy, totalQuestions, correctCount, completedAt, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, name, score, accuracy, totalQuestions, correctCount, completedAt, JSON.stringify(graded)]
-    );
+    if (saveAttempt) {
+      await pool.query(
+        'INSERT INTO programming_quiz_attempts (id, studentName, score, accuracy, totalQuestions, correctCount, completedAt, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, name, score, accuracy, totalQuestions, correctCount, completedAt, JSON.stringify(graded)]
+      );
+    }
 
     res.json({ success: true, id, score, accuracy, totalQuestions, correctCount, completedAt, graded });
   } catch (err: any) {
