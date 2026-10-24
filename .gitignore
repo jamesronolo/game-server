@@ -206,3 +206,10 @@ Token-based access control represents the foundational paradigm for stateless co
 3.1 Assigned Project Context
 
 The Bohol Cacao Information and Industry System (BCIIS Phase 4) was assigned to Group 10 under CS 311 (Algorithms and Complexity) at Bohol Island State University – Bilar Campus in partnership with DOST-PSTO Bohol [2, 12]. The system is split across two collaborative repositories: the frontend client (MAKASA-LABORATORY/BCIIS, branch jamesss, currently diverging 18 commits ahead and 6 commits behind deployed production main ddfdb69e under pinned commit 8b51167c) utilizing React 18 [10] and Leaflet Web-GIS [11], and the backend server (MAKASA-LABORATORY/BCIIS-Server, branch jamesss, commit 60d5ef7) utilizing Node.js, Express, and MySQL 8.0 stored procedures with bcrypt [14]. The platform manages agricultural census records, processing facility metrics, geospatial cacao suitability maps, and administrative workflows across all 48 municipalities of Bohol in accordance with the national cacao roadmap [1]. The system designates five functional roles: Super Administrator, Municipal Agriculturist, Registered Farmer, Cacao Processor, and Public Guest. In the session model of Section 3.2 these are abstracted to the coarser role identifiers stored by the client session guards (admin, user, farmer, processor). Group 10 was tasked with securing client-server state boundaries, hardening release configurations, and optimizing the computational performance of interactive directory visualizers.
+
+
+
+
+
+
+
